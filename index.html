@@ -328,9 +328,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg1);color:var
     </div>
   </div>
 
-  <!-- Hidden input to trigger native keyboard on mobile -->
-  <input id="mobileInput" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-    style="position:absolute;opacity:0;pointer-events:none;width:1px;height:1px;top:0;left:0;border:none;outline:none;background:transparent;color:transparent;caret-color:transparent;z-index:-1;">
+  <!-- Mobile input: visually hidden but focusable -->
+  <input id="mobileInput" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+    style="position:absolute;left:-9999px;top:50%;width:1px;height:1px;opacity:0.01;border:none;outline:none;background:transparent;color:transparent;caret-color:transparent;font-size:16px;">
+
+  <!-- Mobile tap-to-type overlay (shown only on touch, hidden on desktop) -->
+  <div id="mobileTapHint" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:30;pointer-events:auto;">
+    <div style="background:rgba(255,255,255,0.1);border:1.5px solid rgba(255,255,255,0.25);border-radius:24px;padding:8px 20px;font-size:13px;color:rgba(255,255,255,0.7);backdrop-filter:blur(6px);white-space:nowrap;">
+      ⌨️ Ketuk di sini untuk mulai mengetik
+    </div>
+  </div>
 
   <!-- Virtual Keyboard (desktop only) -->
   <div id="vKeyboard" class="hidden">
@@ -1249,6 +1256,7 @@ function endGame(victory){
     triggerShake();
   }
   document.getElementById('mobileInput').blur();
+  document.getElementById('mobileTapHint').style.display = 'none';
   state.screen='game-end';
   cancelAnimationFrame(state.animFrame);
 
@@ -1335,15 +1343,29 @@ function startGame(){
   lastTime = performance.now();
   state.animFrame = requestAnimationFrame(gameLoop);
 
-  // On mobile: focus hidden input so native keyboard appears on tap
+  // On mobile: show tap hint; keyboard opens on first user tap
   if(hasTouch){
     const mi = document.getElementById('mobileInput');
+    const hint = document.getElementById('mobileTapHint');
     mi.value = '';
-    // tap anywhere on game canvas to (re)focus the input
-    document.getElementById('gameCanvas').addEventListener('touchstart', ()=>{
+    hint.style.display = 'block';
+
+    function focusMobileInput(){
       mi.focus();
-    }, { once: false });
-    mi.focus();
+      // Hide hint once keyboard is active (input focused)
+      hint.style.display = 'none';
+    }
+
+    // Tap hint button → open keyboard
+    hint.addEventListener('touchstart', e=>{
+      e.preventDefault();
+      focusMobileInput();
+    }, { passive: false });
+
+    // Tap anywhere on canvas after first focus → keep/restore keyboard
+    document.getElementById('gameCanvas').addEventListener('touchstart', ()=>{
+      if(state.screen === 'game' && !state.paused) mi.focus();
+    }, { passive: true });
   }
 }
 
