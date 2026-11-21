@@ -2,7 +2,7 @@
 <html lang="id">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, interactive-widget=resizes-visual">
 <meta name="theme-color" content="#1e1436">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -691,9 +691,22 @@ function drawStars(t){
 // ── CANVAS SETUP ────────────────────────────────────────────
 const gc = document.getElementById('gameCanvas');
 const ctx = gc.getContext('2d');
+// Store initial dimensions so keyboard pop-up on mobile can't shrink them
+let _initW = 0, _initH = 0;
 function resizeCanvas(){
-  gc.width  = window.innerWidth;
-  gc.height = window.innerHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  // On mobile: once set, never shrink below initial size (keyboard pop-up shrinks innerHeight)
+  if(navigator.maxTouchPoints > 0 && _initW > 0){
+    // Only update if the new size is LARGER (e.g. orientation change to landscape)
+    gc.width  = Math.max(_initW, w);
+    gc.height = Math.max(_initH, h);
+  } else {
+    gc.width  = w;
+    gc.height = h;
+    _initW = w;
+    _initH = h;
+  }
   state.rocketX = gc.width/2;
 }
 
@@ -743,7 +756,7 @@ function spawnCapsule(){
 // ── LASER ────────────────────────────────────────────────────
 function fireLaser(targetCapsule){
   const kbH = state.showKeyboard ? (document.getElementById('vKeyboard').offsetHeight + 44) : 0;
-  const rocketY = window.innerHeight - 60 - kbH;
+  const rocketY = gc.height - 60 - kbH;
   state.lasers.push({
     x1: state.rocketX, y1: rocketY,
     x2: targetCapsule.x, y2: targetCapsule.y,
@@ -897,7 +910,7 @@ function update(dt, ts){
 
   // Move capsules
   const kbH = state.showKeyboard ? (document.getElementById('vKeyboard').offsetHeight + 44) : 0;
-  const rocketY = window.innerHeight - 60 - kbH;
+  const rocketY = gc.height - 60 - kbH;
   const missLine = rocketY - 44;
   const fallSpeed = getLevelSpeed(state.level);
 
@@ -1068,7 +1081,7 @@ function draw(ts){
 
   // Rocket
   const kbH = state.showKeyboard ? (document.getElementById('vKeyboard').offsetHeight + 44) : 0;
-  const rocketY = window.innerHeight - 60 - kbH;
+  const rocketY = gc.height - 60 - kbH;
   drawRocket(state.rocketX, rocketY, state.rocketAngle);
 
   // Screen flash overlay
@@ -1472,6 +1485,13 @@ document.getElementById('changeUserBtn').addEventListener('click',()=>{
 
 // ── RESIZE ───────────────────────────────────────────────────
 window.addEventListener('resize',()=>{
+  // On mobile, ignore resize caused by keyboard show/hide (innerHeight shrinks < _initH)
+  // Only resize if width changed (orientation change) or on desktop
+  const isMobile = navigator.maxTouchPoints > 0;
+  const widthChanged = Math.abs(window.innerWidth - _initW) > 10;
+  if(isMobile && !widthChanged) return; // keyboard pop-up — ignore
+  // Real resize: orientation change or desktop resize
+  _initW = 0; _initH = 0; // reset so resizeCanvas re-captures
   initStars();
   if(state.screen==='game') resizeCanvas();
 });
