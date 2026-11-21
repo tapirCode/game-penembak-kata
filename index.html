@@ -336,18 +336,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:var(--bg1);color:var
     </div>
   </div>
 
-  <!-- Mobile input: visually hidden but focusable -->
-  <input id="mobileInput" type="text" inputmode="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
-    style="position:absolute;left:-9999px;top:50%;width:1px;height:1px;opacity:0.01;border:none;outline:none;background:transparent;color:transparent;caret-color:transparent;font-size:16px;">
-
-  <!-- Mobile tap-to-type overlay (shown only on touch, hidden on desktop) -->
-  <div id="mobileTapHint" style="display:none;position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:30;pointer-events:auto;">
-    <div style="background:rgba(255,255,255,0.1);border:1.5px solid rgba(255,255,255,0.25);border-radius:24px;padding:8px 20px;font-size:13px;color:rgba(255,255,255,0.7);backdrop-filter:blur(6px);white-space:nowrap;">
-      ⌨️ Ketuk di sini untuk mulai mengetik
-    </div>
-  </div>
-
-  <!-- Virtual Keyboard (desktop only) -->
+  <!-- Virtual Keyboard -->
   <div id="vKeyboard" class="hidden">
     <div class="kb-row" id="kbRow1"></div>
     <div class="kb-row" id="kbRow2"></div>
@@ -1192,40 +1181,6 @@ document.addEventListener('keydown', e=>{
   }
 });
 
-// ── MOBILE NATIVE KEYBOARD INPUT ─────────────────────────────
-(function(){
-  const mi = document.getElementById('mobileInput');
-  // Use 'input' event: fires every time user types a character
-  mi.addEventListener('input', ()=>{
-    if(state.screen !== 'game' || state.paused) { mi.value=''; return; }
-    const val = mi.value;
-    if(!val) return;
-    // Process every character typed (handles fast typing)
-    for(const ch of val){ handleChar(ch); }
-    mi.value = '';
-  });
-  // Handle backspace on mobile
-  mi.addEventListener('keydown', e=>{
-    if(state.screen !== 'game') return;
-    if(e.key === 'Backspace'){
-      if(state.lockedCapsule && state.lockedCapsule.typed > 0){
-        state.lockedCapsule.typed--;
-        if(state.lockedCapsule.typed === 0){
-          state.lockedCapsule.locked = false;
-          state.lockedCapsule = null;
-        }
-      }
-    }
-    if(e.key === 'Escape') togglePause();
-  });
-  // Re-focus input when it loses focus during game (keeps keyboard alive)
-  mi.addEventListener('blur', ()=>{
-    if(state.screen === 'game' && !state.paused){
-      setTimeout(()=>{ if(state.screen==='game') mi.focus(); }, 100);
-    }
-  });
-})();
-
 // ── VIRTUAL KEYBOARD ─────────────────────────────────────────
 const KB_ROWS = ['qwertyuiop','asdfghjkl','zxcvbnm'];
 function buildVirtualKeyboard(){
@@ -1265,9 +1220,6 @@ function toggleKeyboard(){
 function togglePause(){
   state.paused = !state.paused;
   document.getElementById('pauseOverlay').classList.toggle('hidden', !state.paused);
-  // On mobile: blur input when paused (hides native keyboard), re-focus on resume
-  const mi = document.getElementById('mobileInput');
-  if(state.paused) mi.blur(); else if(navigator.maxTouchPoints > 0) mi.focus();
 }
 
 // ── END GAME ─────────────────────────────────────────────────
@@ -1276,8 +1228,6 @@ function endGame(victory){
     triggerFlash('red');
     triggerShake();
   }
-  document.getElementById('mobileInput').blur();
-  document.getElementById('mobileTapHint').style.display = 'none';
   state.screen='game-end';
   cancelAnimationFrame(state.animFrame);
 
@@ -1351,43 +1301,17 @@ function startGame(){
   document.getElementById('pauseOverlay').classList.add('hidden');
   document.getElementById('levelUpNotif').classList.remove('show');
 
-  // Mobile: use native keyboard; Desktop: virtual keyboard hidden by default
+  // Show virtual keyboard by default on touch device
   const hasTouch = navigator.maxTouchPoints > 0;
-  state.showKeyboard = false;
-  document.getElementById('vKeyboard').classList.add('hidden');
-  // Hide the virtual keyboard toggle button on touch devices
-  document.getElementById('kbToggleBtn').style.display = hasTouch ? 'none' : '';
+  state.showKeyboard = hasTouch;
+  document.getElementById('vKeyboard').classList.toggle('hidden', !state.showKeyboard);
+  document.getElementById('kbToggleBtn').style.display = '';
 
   showScreen('gameScreen');
   state.screen='game';
   resizeCanvas();
   lastTime = performance.now();
   state.animFrame = requestAnimationFrame(gameLoop);
-
-  // On mobile: show tap hint; keyboard opens on first user tap
-  if(hasTouch){
-    const mi = document.getElementById('mobileInput');
-    const hint = document.getElementById('mobileTapHint');
-    mi.value = '';
-    hint.style.display = 'block';
-
-    function focusMobileInput(){
-      mi.focus();
-      // Hide hint once keyboard is active (input focused)
-      hint.style.display = 'none';
-    }
-
-    // Tap hint button → open keyboard
-    hint.addEventListener('touchstart', e=>{
-      e.preventDefault();
-      focusMobileInput();
-    }, { passive: false });
-
-    // Tap anywhere on canvas after first focus → keep/restore keyboard
-    document.getElementById('gameCanvas').addEventListener('touchstart', ()=>{
-      if(state.screen === 'game' && !state.paused) mi.focus();
-    }, { passive: true });
-  }
 }
 
 // ── MENU LOGIC ───────────────────────────────────────────────
